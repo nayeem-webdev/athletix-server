@@ -2,13 +2,20 @@ require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
 const cors = require("cors");
-
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 const app = express();
 const port = process.env.PORT || 5000;
 
 //* Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:5173"],
+    credentials: true,
+  })
+);
 app.use(express.json());
+app.use(cookieParser());
 
 const uri = `mongodb+srv://${process.env.DB_USER_NAME}:${process.env.DB_PASSWORD}@cluster0.hl8mn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -26,37 +33,53 @@ async function run() {
     // await client.connect();
     const database = client.db("ATHLETIXproductsDB");
     const allProducts = database.collection("AllProducts");
+    const users = database.collection("users");
 
-    //* Getting All Products
+    //?? JWT AUTH APIS // JWT AUTH APIS
+    //?? JWT AUTH APIS // JWT AUTH APIS
+
+    //!! Auth API JWT
+    app.post("/jwt", (req, res) => {
+      const data = req.body;
+      const token = jwt.sign(data, process.env.TOKEN_SECRET, {
+        expiresIn: "5h",
+      });
+      res
+        .cookie("token", token, {
+          httpOnly: true,
+          secure: false,
+        })
+        .send({ success: true });
+    });
+
+    //!! Auth API JWT Logout
+    app.post("/logout", (req, res) => {
+      res
+        .clearCookie("token", {
+          httpOnly: true,
+          secure: false,
+        })
+        .send({ success: true });
+    });
+
+    //?? PRODUCT APIS // PRODUCT APIS
+    //?? PRODUCT APIS // PRODUCT APIS
+
+    //** Get All Products
     app.get("/all-products", async (req, res) => {
       const cursor = allProducts.find();
       const result = await cursor.toArray();
       res.send(result);
     });
 
-    //* Getting All Equipment Products
-    app.get("/all-products/category/all-equipment", async (req, res) => {
-      const cursor = allProducts.find();
-      const result = await cursor.toArray();
-      res.send(result);
-    });
-
-    //* Get Products By category
-    app.get("/all-products/category/:id", async (req, res) => {
-      const id = req.params.id;
-      const cursor = allProducts.find({ category: id });
-      const result = await cursor.toArray();
-      res.json(result);
-    });
-
-    //* Get Single Product By ID
+    //** Get Single Product By ID
     app.get("/all-products/:id", async (req, res) => {
       const id = req.params.id;
       const result = await allProducts.findOne({ _id: new ObjectId(id) });
       res.send(result);
     });
 
-    //* Get Products By UID
+    //** Get Products By UID
     app.get("/all-products/user/:id", async (req, res) => {
       const id = req.params.id;
       const cursor = allProducts.find({ uid: id });
@@ -64,14 +87,14 @@ async function run() {
       res.json(result);
     });
 
-    //TODO Adding a new Product
+    //** Adding a new Product
     app.post("/all-products", async (req, res) => {
       const product = req.body;
       const result = await allProducts.insertOne(product);
       res.send(result);
     });
 
-    //TODO Update a product
+    //** Update a product
     app.put("/all-products/:id", async (req, res) => {
       const id = req.params.id;
       const editedProduct = req.body;
@@ -98,7 +121,7 @@ async function run() {
       res.send(result);
     });
 
-    //! DELETE Single Product
+    //** DELETE Single Product
     app.delete("/all-products/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -106,6 +129,40 @@ async function run() {
       res.send(result);
     });
 
+    //?? USER APIS // USER APIS
+    //?? USER APIS // USER APIS
+
+    //%% Adding a new Product
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      const result = await users.insertOne(user);
+      res.send(result);
+    });
+
+    //%% Update a User
+    app.put("/users/:id", async (req, res) => {
+      const id = req.params.id;
+      const editedUser = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const option = { upsert: true };
+      const updatedUser = {
+        $set: {
+          DisplayName: editedUser.product_title,
+        },
+      };
+      const result = await allProducts.updateOne(filter, updatedUser, option);
+      res.send(result);
+    });
+
+    //%% DELETE Single Product
+    app.delete("/users/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await users.deleteOne(query);
+      res.send(result);
+    });
+
+    //// Check Server
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
     // console.log("Pocked to MongoDB!");
