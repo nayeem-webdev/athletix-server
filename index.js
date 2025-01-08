@@ -132,9 +132,15 @@ async function run() {
     //?? USER APIS // USER APIS
     //?? USER APIS // USER APIS
 
-    //%% Adding a new Product
+    //%% Adding a new User
     app.post("/users", async (req, res) => {
       const user = req.body;
+      console.log(user.email);
+      const query = { uid: user.uid };
+      const isUserExist = await users.findOne(query);
+      if (isUserExist) {
+        return res.send({ Message: "Welcome Back", insertedId: null });
+      }
       const result = await users.insertOne(user);
       res.send(result);
     });
