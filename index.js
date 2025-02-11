@@ -17,6 +17,26 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
+//!! Token Middleware local Storage
+const verifyToken = (req, res, next) => {
+  console.log("Authorization Header:", req.headers.authorization);
+
+  if (!req.headers.authorization) {
+    return res.status(401).send({ message: "Forbidden Access" });
+  }
+  const token = req.headers.authorization.split(" ")[1];
+  if (!token) {
+    return res.status(401).send({ message: "Forbidden Access" });
+  }
+  jwt.verify(token, process.env.TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ message: "Unauthorized Access" });
+    }
+    req.decoded = decoded;
+    next();
+  });
+};
+
 const uri = `mongodb+srv://${process.env.DB_USER_NAME}:${process.env.DB_PASSWORD}@cluster0.hl8mn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 const client = new MongoClient(uri, {
@@ -35,22 +55,42 @@ async function run() {
     const allProducts = database.collection("AllProducts");
     const users = database.collection("users");
 
+    //?? ADMIN APIS // ADMIN APIS
+    //?? ADMIN APIS // ADMIN APIS
+
+    // !! isAdmin API
+    app.get("user/admin/:uid", verifyToken, async (req, res) => {
+      const uid = req.params.uid;
+      if (uid !== req.decoded.uid) {
+        return res.status(403).send({ message: "Unauthorized Access" });
+      }
+      const query = { uid: uid };
+      const user = await users.findOne(query);
+      let admin = false;
+      if (user) {
+        admin = user?.userRole === "admin";
+      }
+      res.send({ admin }); 
+    });
+
     //?? JWT AUTH APIS // JWT AUTH APIS
     //?? JWT AUTH APIS // JWT AUTH APIS
 
     //!! Auth API JWT
-    app.post("/jwt", (req, res) => {
+    app.post("/jwt", async (req, res) => {
       const data = req.body;
       const token = jwt.sign(data, process.env.TOKEN_SECRET, {
         expiresIn: "5h",
       });
-      res
-        .cookie("token", token, {
-          httpOnly: true,
-          secure: false,
-        })
-        .send({ success: true });
+      res.send({ token });
     });
+    // for cookie
+    // res
+    //   .cookie("token", token, {
+    //     httpOnly: true,
+    //     secure: false,
+    //   })
+    //   .send({ success: true });
 
     //!! Auth API JWT Logout
     app.post("/logout", (req, res) => {
@@ -66,7 +106,7 @@ async function run() {
     //?? PRODUCT APIS // PRODUCT APIS
 
     //** Get All Products
-    app.get("/all-products", async (req, res) => {
+    app.get("/all-products", verifyToken, async (req, res) => {
       const cursor = allProducts.find();
       const result = await cursor.toArray();
       res.send(result);
@@ -135,7 +175,6 @@ async function run() {
     //%% Adding a new User
     app.post("/users", async (req, res) => {
       const user = req.body;
-      console.log(user.email);
       const query = { uid: user.uid };
       const isUserExist = await users.findOne(query);
       if (isUserExist) {
@@ -145,11 +184,25 @@ async function run() {
       res.send(result);
     });
 
+    //%% Get All User
+    app.get("/users", verifyToken, async (req, res) => {
+      const cursor = users.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    //%% Get a User
+    app.get("/user/:id", async (req, res) => {
+      const id = req.params.id;
+      const result = await users.findOne({ _id: new ObjectId(id) });
+      res.send(result);
+    });
+
     //%% Update a User
     app.put("/users/:id", async (req, res) => {
       const id = req.params.id;
       const editedUser = req.body;
-      const filter = { _id: new ObjectId(id) };
+      const filter = { uid: id };
       const option = { upsert: true };
       const updatedUser = {
         $set: {
