@@ -10,32 +10,32 @@ const port = process.env.PORT || 5000;
 //* Middleware
 app.use(
   cors({
-    origin: ["http://localhost:5173"],
+    origin: ["http://localhost:5173", "https://athletix-1.web.app"],
     credentials: true,
   })
 );
 app.use(express.json());
 app.use(cookieParser());
 
-//!! Token Middleware local Storage
-const verifyToken = (req, res, next) => {
-  console.log("Authorization Header:", req.headers.authorization);
+// //!! Token Middleware local Storage
+// const verifyToken = (req, res, next) => {
+//   console.log("Authorization Header:", req.headers.authorization);
 
-  if (!req.headers.authorization) {
-    return res.status(401).send({ message: "Forbidden Access" });
-  }
-  const token = req.headers.authorization.split(" ")[1];
-  if (!token) {
-    return res.status(401).send({ message: "Forbidden Access" });
-  }
-  jwt.verify(token, process.env.TOKEN_SECRET, (err, decoded) => {
-    if (err) {
-      return res.status(401).send({ message: "Unauthorized Access" });
-    }
-    req.decoded = decoded;
-    next();
-  });
-};
+//   if (!req.headers.authorization) {
+//     return res.status(401).send({ message: "Forbidden Access" });
+//   }
+//   const token = req.headers.authorization.split(" ")[1];
+//   if (!token) {
+//     return res.status(401).send({ message: "Forbidden Access" });
+//   }
+//   jwt.verify(token, process.env.TOKEN_SECRET, (err, decoded) => {
+//     if (err) {
+//       return res.status(401).send({ message: "Unauthorized Access" });
+//     }
+//     req.decoded = decoded;
+//     next();
+//   });
+// };
 
 const uri = `mongodb+srv://${process.env.DB_USER_NAME}:${process.env.DB_PASSWORD}@cluster0.hl8mn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -54,36 +54,37 @@ async function run() {
     const database = client.db("ATHLETIXproductsDB");
     const allProducts = database.collection("AllProducts");
     const users = database.collection("users");
+    const cartItems = database.collection("cartItems");
 
     //?? ADMIN APIS // ADMIN APIS
     //?? ADMIN APIS // ADMIN APIS
 
     // !! isAdmin API
-    app.get("user/admin/:uid", verifyToken, async (req, res) => {
-      const uid = req.params.uid;
-      if (uid !== req.decoded.uid) {
-        return res.status(403).send({ message: "Unauthorized Access" });
-      }
-      const query = { uid: uid };
-      const user = await users.findOne(query);
-      let admin = false;
-      if (user) {
-        admin = user?.userRole === "admin";
-      }
-      res.send({ admin }); 
-    });
+    // app.get("user/admin/:uid", verifyToken, async (req, res) => {
+    //   const uid = req.params.uid;
+    //   if (uid !== req.decoded.uid) {
+    //     return res.status(403).send({ message: "Unauthorized Access" });
+    //   }
+    //   const query = { uid: uid };
+    //   const user = await users.findOne(query);
+    //   let admin = false;
+    //   if (user) {
+    //     admin = user?.userRole === "admin";
+    //   }
+    //   res.send({ admin });
+    // });
 
     //?? JWT AUTH APIS // JWT AUTH APIS
     //?? JWT AUTH APIS // JWT AUTH APIS
 
     //!! Auth API JWT
-    app.post("/jwt", async (req, res) => {
-      const data = req.body;
-      const token = jwt.sign(data, process.env.TOKEN_SECRET, {
-        expiresIn: "5h",
-      });
-      res.send({ token });
-    });
+    // app.post("/jwt", async (req, res) => {
+    //   const data = req.body;
+    //   const token = jwt.sign(data, process.env.TOKEN_SECRET, {
+    //     expiresIn: "5h",
+    //   });
+    //   res.send({ token });
+    // });
     // for cookie
     // res
     //   .cookie("token", token, {
@@ -92,21 +93,21 @@ async function run() {
     //   })
     //   .send({ success: true });
 
-    //!! Auth API JWT Logout
-    app.post("/logout", (req, res) => {
-      res
-        .clearCookie("token", {
-          httpOnly: true,
-          secure: false,
-        })
-        .send({ success: true });
-    });
+    // //!! Auth API JWT Logout
+    // app.post("/logout", (req, res) => {
+    //   res
+    //     .clearCookie("token", {
+    //       httpOnly: true,
+    //       secure: false,
+    //     })
+    //     .send({ success: true });
+    // });
 
     //?? PRODUCT APIS // PRODUCT APIS
     //?? PRODUCT APIS // PRODUCT APIS
 
     //** Get All Products
-    app.get("/all-products", verifyToken, async (req, res) => {
+    app.get("/all-products", async (req, res) => {
       const cursor = allProducts.find();
       const result = await cursor.toArray();
       res.send(result);
@@ -169,6 +170,16 @@ async function run() {
       res.send(result);
     });
 
+    //?? CART APIS // CART APIS
+    //?? CART APIS // CART APIS
+
+    //$$ Add To Cart API
+    app.post("/cart", async (req, res) => {
+      const cartData = req.body;
+      const result = await cartItems.insertOne(cartData);
+      res.send(result);
+    });
+
     //?? USER APIS // USER APIS
     //?? USER APIS // USER APIS
 
@@ -185,7 +196,7 @@ async function run() {
     });
 
     //%% Get All User
-    app.get("/users", verifyToken, async (req, res) => {
+    app.get("/users", async (req, res) => {
       const cursor = users.find();
       const result = await cursor.toArray();
       res.send(result);
