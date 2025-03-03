@@ -176,7 +176,49 @@ async function run() {
     //$$ Add To Cart API
     app.post("/cart", async (req, res) => {
       const cartData = req.body;
-      const result = await cartItems.insertOne(cartData);
+      const cursor = { uid: cartData.uid };
+      const isUserExist = await cartItems.findOne(cursor);
+      if (isUserExist) {
+        const productID = cartData.productID; // is ok getting product id
+        const itemExist = isUserExist.products.some(
+          (i) => i.productID == productID
+        );
+        if (itemExist) {
+          return res.json({
+            success: true,
+            message: "Product already in cart",
+          });
+        } else {
+          const product = { productID: cartData.productID, qty: 1 };
+          cartItems.updateOne(
+            { uid: cartData.uid },
+            {
+              $push: { products: product },
+            }
+          );
+        }
+
+        return res.json({ success: true, message: "Product added to cart" });
+      }
+      const cartDetails = {
+        uid: cartData.uid,
+        products: [{ productID: cartData.productID, qty: 1 }],
+      };
+      const result = await cartItems.insertOne(cartDetails);
+      res.send(result);
+    });
+
+    // {
+    //   _id: new ObjectId('67b3eb3ff05cbf9412d3a0aa'),
+    //   product: { productID: '67512b9b0adae0fec3c364a3', qty: 1 },
+    //   uid: '2AvQZhO4NehbyBV56RZNGJHQMBl1'
+    // }
+
+    //$$ Get Cart Item by UID
+    app.get("/cart/:uid", async (req, res) => {
+      const uid = req.params.uid;
+      const cursor = { uid: uid };
+      const result = await cartItems.find(cursor).toArray();
       res.send(result);
     });
 
