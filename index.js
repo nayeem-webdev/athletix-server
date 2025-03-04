@@ -184,6 +184,10 @@ async function run() {
           (i) => i.productID == productID
         );
         if (itemExist) {
+          await cartItems.updateOne(
+            { uid: cartData.uid, "products.productID": productID },
+            { $inc: { "products.$.qty": 1 } }
+          );
           return res.json({
             success: true,
             message: "Product already in cart",
