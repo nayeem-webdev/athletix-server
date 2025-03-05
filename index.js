@@ -212,19 +212,133 @@ async function run() {
       res.send(result);
     });
 
-    // {
-    //   _id: new ObjectId('67b3eb3ff05cbf9412d3a0aa'),
-    //   product: { productID: '67512b9b0adae0fec3c364a3', qty: 1 },
-    //   uid: '2AvQZhO4NehbyBV56RZNGJHQMBl1'
-    // }
+    //$$ Get Cart Qty
+    app.put("/cart/update-qty", async (req, res) => {
+      try {
+        const { uid, productID, qty } = req.body;
+
+        if (!uid || !productID || qty === undefined) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Missing required fields" });
+        }
+
+        // Ensure qty is a valid number and greater than zero
+        const newQty = parseInt(qty);
+        if (isNaN(newQty) || newQty < 1) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Quantity must be at least 1" });
+        }
+
+        const cart = await cartItems.findOne({ uid });
+
+        if (!cart) {
+          return res
+            .status(404)
+            .json({ success: false, message: "Cart not found" });
+        }
+
+        const itemExist = cart.products.some((i) => i.productID === productID);
+
+        if (!itemExist) {
+          return res
+            .status(404)
+            .json({ success: false, message: "Product not found in cart" });
+        }
+
+        // Update the quantity of the specific product
+        const updateResult = await cartItems.updateOne(
+          { uid, "products.productID": productID },
+          { $set: { "products.$.qty": newQty } }
+        );
+
+        if (updateResult.modifiedCount === 0) {
+          return res
+            .status(500)
+            .json({ success: false, message: "Failed to update quantity" });
+        }
+
+        res.json({
+          success: true,
+          message: "Product quantity updated successfully",
+        });
+      } catch (error) {
+        console.error("Error updating cart item quantity:", error);
+        res
+          .status(500)
+          .json({ success: false, message: "Internal Server Error" });
+      }
+    });
 
     //$$ Get Cart Item by UID
-    app.get("/cart/:uid", async (req, res) => {
-      const uid = req.params.uid;
-      const cursor = { uid: uid };
-      const result = await cartItems.find(cursor).toArray();
-      res.send(result);
+    app.get("/cart_items/:uid", async (req, res) => {
+      try {
+        const { uid } = req.params;
+
+        const cart = await cartItems.findOne({ uid: uid });
+
+        if (!cart) {
+          return res.status(404).json({ message: "Add Some Products to Cart" });
+        }
+
+        const productIDs = cart.products.map(
+          (item) => new ObjectId(item.productID)
+        );
+
+        const products = await allProducts
+          .aggregate([
+            { $match: { _id: { $in: productIDs } } },
+            {
+              $project: {
+                _id: 1,
+                product_title: 1,
+                price: {
+                  $toDouble: {
+                    $getField: { field: "price", input: "$$ROOT" },
+                  },
+                },
+                stockStatus: {
+                  $toInt: {
+                    $getField: { field: "stockStatus", input: "$$ROOT" },
+                  },
+                },
+              },
+            },
+          ])
+          .toArray();
+
+        // Rename this variable to avoid conflict
+        const formattedCartItems = cart.products
+          .map((item) => {
+            const product = products.find(
+              (p) => p._id.toString() === item.productID
+            );
+            return product
+              ? {
+                  id: product._id,
+                  name: product.product_title,
+                  price: product.price,
+                  qty: Number(item.qty.$numberInt || item.qty),
+                  stockStatus: product.stockStatus,
+                }
+              : null;
+          })
+          .filter(Boolean);
+
+        res.json(formattedCartItems);
+      } catch (error) {
+        console.error("Error fetching cart items:", error);
+        res.status(500).json({ message: "Internal Server Error" });
+      }
     });
+
+    // app.get("/cart/:uid", async (req, res) => {
+    //   const uid = req.params.uid;
+    //   const cursor = { uid: uid };
+    //   const result = await cartItems.find(cursor).toArray();
+    //   res.send(result);
+    // });
 
     //?? USER APIS // USER APIS
     //?? USER APIS // USER APIS
